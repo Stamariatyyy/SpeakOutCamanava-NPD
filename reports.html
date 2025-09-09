@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Manage Reports - Speak Out CAMANAVA</title>
+
+  <!-- Tailwind for responsive layout -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Supabase JS v2 -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
+  <style>
+    :root { --brand:#7D992D; --ink:#4F4F4F; }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{font-family:'Poppins',sans-serif;background:#F3F5ED}
+
+    /* Card & chips */
+    .chip{display:inline-flex;align-items:center;gap:.5rem;padding:.4rem .8rem;border-radius:9999px;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.08)}
+    .chip i{color:var(--brand)}
+
+    /* Profile card same look & feel as LGU Dashboard */
+    .profile-card{box-shadow:0 6px 18px rgba(0,0,0,.08);border-radius:14px;border:1px solid #e5e7eb;background:#fff}
+
+    /* Table responsiveness */
+    .table-wrap{overflow:auto;border-radius:.75rem;border:1px solid #e5e7eb;background:#fff}
+    table{width:100%;border-collapse:collapse}
+    thead th{position:sticky;top:0;background:#f6f8f1;color:var(--ink);font-weight:600}
+    th,td{padding:.8rem 1rem;border-bottom:1px solid #eef0ea;white-space:nowrap}
+    tr:hover td{background:#fafcf7}
+
+    /* Map single marker style */
+    .circle-marker{background:#d9534f;border-radius:50%;width:20px;height:20px;border:3px solid white;box-shadow:0 0 5px rgba(0,0,0,.3)}
+  </style>
+</head>
+<body class="min-h-screen w-full">
+  <div class="w-full min-h-screen px-4 md:px-6 lg:px-10 py-6">
+
+    <!-- HEADER -->
+    <header class="flex items-center justify-between flex-wrap gap-4 mb-6">
+      <div class="flex items-center gap-3">
+        <img src="images/SpeakOut_Logo.png" class="w-9 h-9" alt="Logo"/>
+        <h1 class="text-xl font-bold">
+          <span class="text-[var(--brand)]">SPEAK OUT</span><span class="text-black"> CAMANAVA</span>
+        </h1>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <a class="chip font-semibold text-[var(--ink)] hover:scale-[1.02] transition" href="lgudashboard.html" title="Dashboard">
+          <i class="fa-solid fa-gauge"></i> Dashboard
+        </a>
+        <span class="chip font-semibold text-[var(--ink)] ring-2 ring-[var(--brand)]" title="Reports">
+          <i class="fa-solid fa-chart-column"></i> Reports
+        </span>
+
+        <!-- PROFILE (same pattern as LGU Dashboard) -->
+        <div class="relative">
+          <button id="profileBtn" class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-[var(--brand)] bg-gray-200 flex items-center justify-center text-sm font-semibold text-[var(--ink)]" title="Account">
+            <img id="profileImg" class="w-full h-full object-cover hidden" alt="Profile"/><span id="profileInitials">--</span>
+          </button>
+
+          <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-[320px] z-50">
+            <div class="profile-card p-4">
+              <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-full overflow-hidden ring-2 ring-[var(--brand)] bg-gray-200 flex items-center justify-center text-sm font-semibold text-[var(--ink)]">
+                  <img id="profileImg2" class="w-full h-full object-cover hidden" alt="Profile"/><span id="profileInitials2">--</span>
+                </div>
+                <div class="min-w-0">
+                  <p id="profileEmail" class="text-sm font-semibold text-[var(--ink)] truncate">—</p>
+                  <p id="tokenHint" class="text-[11px] uppercase tracking-wide text-[#7A7272]">ACTIVE</p>
+                </div>
+              </div>
+
+              <div class="mt-4">
+                <button id="logoutInside" class="w-full px-4 py-2 rounded-lg bg-red-500 text-white hover:brightness-95">
+                  <i class="fa-solid fa-right-from-bracket mr-2"></i> Log out
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- /PROFILE -->
+      </div>
+    </header>
+
+    <!-- CITY TITLE -->
+    <div class="mb-4">
+      <h2 id="cityTitle" class="text-[var(--ink)] text-lg font-semibold">—</h2>
+    </div>
+
+    <!-- TABLE CARD -->
+    <section class="mb-6">
+      <div class="bg-white rounded-xl shadow p-4 mb-3">
+        <h2 class="text-[var(--ink)] text-lg font-bold">Manage Reported Crimes</h2>
+      </div>
+
+      <div class="table-wrap rounded-xl shadow">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Type of Incident</th>
+              <th>Description</th>
+              <th>City</th>
+              <th>Date</th>
+              <th>Time</th>
+              <th>Location</th>
+            </tr>
+          </thead>
+          <tbody id="reportTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- MAP CARD -->
+    <section id="mapCard" class="bg-white rounded-xl shadow p-5 hidden">
+      <h2 class="text-[var(--ink)] text-lg font-bold mb-3">Incident Location</h2>
+      <div class="relative h-[60vh] min-h-[380px]">
+        <div id="map" class="absolute inset-0 rounded-xl"></div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    /* ---------------- Supabase client + Auth/JWT ---------------- */
+    const SUPABASE_URL='https://xlmshoddqaaeazvzuhar.supabase.co';
+    const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhsbXNob2RkcWFhZWF6dnp1aGFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDczMTQyNDUsImV4cCI6MjA2Mjg5MDI0NX0.-ViKUzQOAOw4b-QyAZpTfDA6qR8HNHNyWWkmHAv40ZQ';
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
+    });
+
+    const INCIDENTS='incidents';
+    let USER=null, USER_CITY=sessionStorage.getItem('lgu_city') || (JSON.parse(localStorage.getItem('currentUser')||'{}').city) || 'Caloocan';
+
+    const $ = (id)=>document.getElementById(id);
+
+    /* ---------- Auth Guard ---------- */
+    async function authGuard(){
+      const { data:{ session } } = await sb.auth.getSession();
+      if(!session){ window.location.replace('index.html'); return; }
+      USER=session.user;
+
+      // Persist JWTs for any custom requests
+      sessionStorage.setItem('sb_access_token', session.access_token||'');
+      sessionStorage.setItem('sb_refresh_token', session.refresh_token||'');
+      sessionStorage.setItem('sb_expires_at', String(session.expires_at||''));
+      if(!sessionStorage.getItem('role')) sessionStorage.setItem('role','LGU-ADMIN');
+
+      hydrateProfileUI();
+
+      sb.auth.onAuthStateChange((evt,s)=>{
+        if(evt==='SIGNED_OUT'){ sessionStorage.clear(); localStorage.removeItem('currentUser'); window.location.replace('index.html'); }
+        if((evt==='TOKEN_REFRESHED'||evt==='SIGNED_IN') && s){
+          sessionStorage.setItem('sb_access_token', s.access_token||'');
+          sessionStorage.setItem('sb_refresh_token', s.refresh_token||'');
+          sessionStorage.setItem('sb_expires_at', String(s.expires_at||''));
+          const th=$('tokenHint'); if(th) th.textContent='ACTIVE';
+        }
+      });
+    }
+
+    /* ---------- Profile UI (same as LGU Dashboard) ---------- */
+    const initials=(email)=>{if(!email)return'--';const name=email.split('@')[0];const a=name[0]||'-',b=name[name.length-1]||'-';return (a+b).toUpperCase();}
+    const avatarUrl=(u)=>u?.user_metadata?.avatar_url||u?.user_metadata?.picture||u?.identities?.[0]?.identity_data?.avatar_url||'';
+    function hydrateProfileUI(){
+      $('cityTitle').textContent=`${(USER_CITY||'').charAt(0).toUpperCase()+String(USER_CITY||'').slice(1)} – LGU Admin`;
+      const email=USER?.email||'';
+      const av=avatarUrl(USER); const init=initials(email);
+      if(av){
+        $('profileImg').src=av; $('profileImg').classList.remove('hidden'); $('profileInitials').classList.add('hidden');
+        $('profileImg2').src=av; $('profileImg2').classList.remove('hidden'); $('profileInitials2').classList.add('hidden');
+      }else{
+        $('profileInitials').textContent=init; $('profileInitials').classList.remove('hidden'); $('profileImg').classList.add('hidden');
+        $('profileInitials2').textContent=init; $('profileInitials2').classList.remove('hidden'); $('profileImg2').classList.add('hidden');
+      }
+      $('profileEmail').textContent=email || '—';
+    }
+
+    function wireProfile(){
+      const btn=$('profileBtn'), dd=$('profileDropdown');
+      btn.addEventListener('click',e=>{e.stopPropagation(); dd.classList.toggle('hidden')});
+      document.addEventListener('click',()=>dd.classList.add('hidden'));
+      dd.addEventListener('click',e=>e.stopPropagation());
+      $('logoutInside').addEventListener('click', async ()=>{
+        try{ await sb.auth.signOut(); }catch{}
+        sessionStorage.clear(); localStorage.removeItem('currentUser');
+        window.location.replace('index.html');
+      });
+    }
+
+    /* ---------- Reports table + map ---------- */
+    let map=null, marker=null;
+
+    function showMap(lat,lng){
+      $('mapCard').classList.remove('hidden');
+      if(!map){
+        map=L.map('map').setView([lat,lng],15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
+      }else{
+        map.setView([lat,lng],15);
+      }
+      if(marker) map.removeLayer(marker);
+      const dot=L.divIcon({className:'circle-marker',iconSize:[20,20]});
+      marker=L.marker([lat,lng],{icon:dot}).addTo(map).bindPopup('Incident Location').openPopup();
+    }
+
+    function renderTable(rows){
+      const tb=$('reportTable');
+      tb.innerHTML = (rows||[]).map(r=>{
+        const hasGeo = Number.isFinite(parseFloat(r.latitude)) && Number.isFinite(parseFloat(r.longitude));
+        return `
+          <tr data-lat="${hasGeo?r.latitude:''}" data-lng="${hasGeo?r.longitude:''}">
+            <td>${r.iid??''}</td>
+            <td class="max-w-[360px] truncate" title="${r.type_of_incident??''}">${r.type_of_incident??''}</td>
+            <td class="max-w-[520px] truncate" title="${(r.description??'').replace(/"/g,'&quot;')}">${r.description??''}</td>
+            <td>${r.city??''}</td>
+            <td>${r.date??''}</td>
+            <td>${r.time??''}</td>
+            <td class="${hasGeo?'text-[var(--brand)] font-semibold underline cursor-pointer':'text-gray-400'}">
+              ${hasGeo?'Show on map':'No location'}
+            </td>
+          </tr>`;
+      }).join('');
+
+      // Row click -> show map (if coordinates)
+      tb.querySelectorAll('tr').forEach(tr=>{
+        tr.addEventListener('click',()=>{
+          const lat=parseFloat(tr.getAttribute('data-lat'));
+          const lng=parseFloat(tr.getAttribute('data-lng'));
+          if(Number.isFinite(lat) && Number.isFinite(lng)) showMap(lat,lng);
+        });
+      });
+    }
+
+    async function fetchReports(){
+      try{
+        const { data, error } = await sb
+          .from(INCIDENTS)
+          .select('iid, type_of_incident, description, city, date, time, latitude, longitude')
+          .eq('city', USER_CITY)
+          .order('iid', { ascending:false });
+
+        if(error) throw error;
+        renderTable(data||[]);
+      }catch(e){
+        console.error('Load error:', e);
+        $('reportTable').innerHTML = `<tr><td colspan="7" class="text-red-600">Failed to load reports.</td></tr>`;
+      }
+    }
+
+    /* ---------- Boot ---------- */
+    (async ()=>{
+      await authGuard();
+      wireProfile();
+      await fetchReports();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>LGU Login - SPEAK OUT CAMANAVA</title>
+
+  <!-- Tailwind + Icons -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+
+  <!-- Supabase JS v2 -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
+
+    :root { color-scheme: light; }
+
+    html, body { height: 100%; }
+    body{
+      font-family:'Poppins',sans-serif;
+      /* soft overlay + hero */
+      background:
+        linear-gradient(rgba(255,255,255,.85),rgba(255,255,255,.85)),
+        url('images/Background1.png') center/cover no-repeat fixed;
+      /* use dynamic viewport units for mobile browser chrome */
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      margin: 0;
+      padding: 16px; /* breathing room on tiny screens */
+      overflow-x: hidden; /* avoid any accidental horizontal scroll */
+    }
+    /* On small devices, avoid background-attachment: fixed jank */
+    @media (max-width: 640px){
+      body{ background-attachment: scroll; }
+    }
+
+    .input-field{
+      border-bottom:2px solid #7D992D; width:100%; padding:6px 0; position:relative
+    }
+    .input-field input,.input-field select{
+      background:transparent; border:none; outline:none; width:100%; padding-right:28px; color:#333;
+      appearance:none; /* hide native select arrow */
+    }
+    .floating-label{
+      position:absolute; left:0; top:6px; color:#666; font-size:12px; font-weight:700; pointer-events:none; transition:.2s;
+    }
+    input:focus ~ .floating-label,
+    input:not(:placeholder-shown) ~ .floating-label,
+    select:focus ~ .floating-label,
+    select.filled ~ .floating-label{
+      top:-15px; font-size:10px; color:#7D992D;
+    }
+    .right-icon{position:absolute; right:0; top:50%; transform:translateY(-50%); color:#7D992D}
+    .error-inline{color:#e11d48; text-align:center; display:none}
+
+    /* Modal helpers */
+    .fade-in{animation:fadeIn .15s ease-out}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    .pop-in{animation:popIn .15s ease-out}
+    @keyframes popIn{from{transform:translateY(6px) scale(.98);opacity:0}to{transform:none;opacity:1}}
+  </style>
+</head>
+<body>
+  <!-- Responsive card wrapper -->
+  <div class="w-full max-w-[440px] sm:max-w-[420px] md:max-w-[440px] mx-auto text-center bg-transparent">
+    <img src="images/Speakout_Logo.png" alt="Speak Out Logo" class="w-36 h-36 sm:w-40 sm:h-40 md:w-44 md:h-44 mx-auto"/>
+
+    <div class="font-bold mb-2 text-[18px] sm:text-[20px]">
+      <span class="text-[#7D992D]">SPEAK OUT</span>
+      <span class="text-black"> CAMANAVA</span>
+    </div>
+
+    <div class="text-[#7D992D] font-bold mb-5 text-[28px] sm:text-[32px]">LGU LOGIN</div>
+
+    <div id="err" class="error-inline mb-3"></div>
+
+    <form id="form" class="space-y-6 px-1 sm:px-2" novalidate>
+      <!-- City (DROPDOWN) -->
+      <div class="flex items-center">
+        <i class="fa-solid fa-city text-[#7D992D] mr-3 text-lg"></i>
+        <div class="w-full input-field">
+          <select id="city" aria-label="City" required>
+            <option value="" selected hidden></option>
+            <option value="Caloocan">Caloocan</option>
+            <option value="Malabon">Malabon</option>
+            <option value="Navotas">Navotas</option>
+            <option value="Valenzuela">Valenzuela</option>
+          </select>
+          <label class="floating-label">City</label>
+          <i class="fa-solid fa-chevron-down right-icon pointer-events-none"></i>
+        </div>
+      </div>
+
+      <!-- Username (email) -->
+      <div class="flex items-center">
+        <i class="fa-solid fa-user text-[#7D992D] mr-3 text-lg"></i>
+        <div class="w-full input-field">
+          <input id="email" type="email" placeholder=" " autocomplete="username" inputmode="email" required/>
+          <label class="floating-label">Email</label>
+        </div>
+      </div>
+
+      <!-- Password -->
+      <div class="flex items-center">
+        <i class="fa-solid fa-lock text-[#7D992D] mr-3 text-lg"></i>
+        <div class="w-full input-field">
+          <input id="password" type="password" placeholder=" " autocomplete="current-password" required/>
+          <label class="floating-label">Password</label>
+          <i id="togglePw" class="fa-solid fa-eye-slash right-icon cursor-pointer"></i>
+        </div>
+      </div>
+
+      <button id="btn" type="submit" class="bg-[#D6E7A2] text-[#555] py-2 rounded-[14px] text-[18px] sm:text-[20px] font-bold w-full hover:bg-[#7D992D] hover:text-white transition">
+        LOGIN
+      </button>
+    </form>
+  </div>
+
+  <!-- Modal -->
+  <div id="modalRoot" class="fixed inset-0 hidden items-center justify-center z-50">
+    <div id="modalBackdrop" class="absolute inset-0 bg-black/40 fade-in"></div>
+    <div class="relative bg-white rounded-2xl shadow-2xl w-[92%] max-w-md p-6 pop-in mx-auto">
+      <div class="flex items-start gap-3">
+        <div id="mIcon" class="mt-1"></div>
+        <div class="flex-1">
+          <h3 id="mTitle" class="text-lg sm:text-xl font-bold text-gray-800"></h3>
+          <p id="mMsg" class="text-sm text-gray-600 mt-1"></p>
+        </div>
+      </div>
+      <div class="flex justify-end mt-6">
+        <button id="mClose" class="px-4 py-2 rounded-lg text-white bg-gray-700 hover:bg-gray-800 transition">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /*************** Supabase client (Auth + JWT) ***************/
+    const SUPABASE_URL = "https://xlmshoddqaaeazvzuhar.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhsbXNob2RkcWFhZWF6dnp1aGFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDczMTQyNDUsImV4cCI6MjA2Mjg5MDI0NX0.-ViKUzQOAOw4b-QyAZpTfDA6qR8HNHNyWWkmHAv40ZQ";
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth:{ persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
+    });
+
+    const $ = (id)=>document.getElementById(id);
+    const errEl = $('err'), cityEl=$('city'), emailEl=$('email'), pwEl=$('password');
+
+    function isEmail(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v||'').toLowerCase()); }
+    function showErr(msg){ errEl.textContent=msg||''; errEl.style.display=msg?'block':'none'; }
+
+    function showModal({type='info',title='',message='',onClose=null,autoCloseMs=null}){
+      $('modalRoot').classList.remove('hidden'); $('modalRoot').classList.add('flex');
+      $('mTitle').textContent=title; $('mMsg').textContent=message;
+      $('mIcon').innerHTML = type==='success'
+        ? '<i class="fa-solid fa-circle-check text-green-600 text-2xl"></i>'
+        : type==='error'
+        ? '<i class="fa-solid fa-circle-xmark text-red-600 text-2xl"></i>'
+        : '<i class="fa-solid fa-circle-info text-blue-600 text-2xl"></i>';
+      const close=()=>{ $('modalRoot').classList.add('hidden'); $('modalRoot').classList.remove('flex');
+        $('mClose').removeEventListener('click',close); $('modalBackdrop').removeEventListener('click',close);
+        document.removeEventListener('keydown',esc); if(typeof onClose==='function') onClose(); };
+      const esc=(e)=>{ if(e.key==='Escape') close(); };
+      $('mClose').addEventListener('click',close); $('modalBackdrop').addEventListener('click',close);
+      document.addEventListener('keydown',esc);
+      if(autoCloseMs) setTimeout(close, autoCloseMs);
+    }
+
+    function storeTokens(session){
+      if(!session) return;
+      sessionStorage.setItem('sb_access_token', session.access_token||'');
+      sessionStorage.setItem('sb_refresh_token', session.refresh_token||'');
+      sessionStorage.setItem('sb_expires_at', String(session.expires_at||''));
+    }
+    sb.auth.onAuthStateChange((evt, session)=>{
+      if(evt==='SIGNED_IN' || evt==='TOKEN_REFRESHED') storeTokens(session);
+      if(evt==='SIGNED_OUT'){ ['sb_access_token','sb_refresh_token','sb_expires_at','username','uid','role','lgu_city'].forEach(k=>sessionStorage.removeItem(k)); }
+    });
+
+    // If already logged in as LGU-ADMIN, go straight to dashboard
+    (async ()=>{
+      const { data:{ session } } = await sb.auth.getSession();
+      if(session?.user && sessionStorage.getItem('role')==='LGU-ADMIN'){
+        storeTokens(session);
+        location.replace('lgudashboard.html');
+      }
+    })();
+
+    // Make select label float when a value is chosen (and on load)
+    const markSelectFill=()=> cityEl.classList.toggle('filled', !!cityEl.value);
+    cityEl.addEventListener('change', markSelectFill);
+    document.addEventListener('DOMContentLoaded', markSelectFill);
+
+    // Toggle password visibility
+    $('togglePw').addEventListener('click', function(){
+      if(pwEl.type==='password'){ pwEl.type='text'; this.classList.replace('fa-eye-slash','fa-eye'); }
+      else { pwEl.type='password'; this.classList.replace('fa-eye','fa-eye-slash'); }
+    });
+
+    // Submit
+    $('form').addEventListener('submit', async (e)=>{
+      e.preventDefault(); showErr('');
+      const city=(cityEl.value||'').trim(), email=(emailEl.value||'').trim().toLowerCase(), password=(pwEl.value||'').trim();
+
+      if(!city){ showErr('Please select your city.'); return; }
+      if(!email || !isEmail(email)){ showErr('Please enter a valid email.'); return; }
+      if(!password){ showErr('Please enter your password.'); return; }
+
+      try{
+        // 1) Sign in with Supabase Auth (gets JWT)
+        const { data, error } = await sb.auth.signInWithPassword({ email, password });
+        if(error || !data?.session){ showErr('Invalid email or password.'); return; }
+
+        // 2) Verify they exist in 'lgu-accounts' for the chosen city
+        const { data: acct, error: qErr } = await sb
+          .from('lgu-accounts')
+          .select('city,username')
+          .eq('city', city)
+          .eq('username', email)
+          .single();
+
+        if(qErr || !acct){
+          try{ await sb.auth.signOut(); }catch{}
+          showModal({type:'error', title:'Access Denied', message:`${email} is not registered as an LGU account for ${city}.`});
+          return;
+        }
+
+        // 3) Persist details for other pages
+        const { session, user } = data;
+        sessionStorage.setItem('username', user.email||'LGU Admin');
+        sessionStorage.setItem('uid', user.id);
+        sessionStorage.setItem('role','LGU-ADMIN');   // mark this session as LGU
+        sessionStorage.setItem('lgu_city', city);
+        storeTokens(session);
+
+        showModal({
+          type:'success',
+          title:'Login Successful',
+          message:`Welcome, ${email} (${city}). Redirecting…`,
+          autoCloseMs:900,
+          onClose:()=> location.replace('lgudashboard.html')
+        });
+      }catch(err){
+        console.error(err);
+        showModal({type:'error', title:'Login Failed', message:'Unable to log in. Please try again.'});
+      }
+    });
+
+    // Enter key triggers submit (works even if button not focused)
+    document.addEventListener('keydown', (e)=>{ if(e.key==='Enter') $('btn').click(); });
+  </script>
+</body>
+</html>

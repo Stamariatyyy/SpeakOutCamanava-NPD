@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LGU Dashboard – Speak Out CAMANAVA</title>
+
+  <!-- Fonts + Tailwind -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+
+  <!-- Leaflet + MarkerCluster -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+  <!-- Charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+
+  <!-- Supabase -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
+  <style>
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{font-family:"Poppins",sans-serif;background:#F3F5ED; overflow-x:hidden}
+
+    .chip{display:inline-flex;align-items:center;gap:.5rem;padding:.35rem .7rem;border-radius:9999px;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.08)}
+    .legend-dot{width:12px;height:12px;border-radius:9999px;border:2px solid #111;display:inline-block}
+
+    /* Cluster like MAP.html */
+    .cluster-div-icon .cluster-icon{
+      display:flex;align-items:center;justify-content:center;background:#EF4444;color:#fff;
+      font-weight:700;border-radius:9999px;border:2px solid #fff;box-shadow:0 4px 8px rgba(0,0,0,.15),0 0 0 4px rgba(239,68,68,.2);
+      line-height:1;user-select:none
+    }
+    .custom-div-icon{background:transparent;border:0}
+    .incident-pin{width:18px;height:18px;border-radius:9999px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+
+    /* Profile dropdown card */
+    .profile-card{
+      box-shadow:0 6px 18px rgba(0,0,0,.08);
+      border-radius:14px;border:1px solid #e5e7eb;background:#fff
+    }
+  </style>
+</head>
+<body class="min-h-screen w-full">
+  <!-- Full-width wrapper -->
+  <div class="w-full max-w-[100vw] px-4 sm:px-5 lg:px-10 py-6">
+
+    <!-- HEADER -->
+    <header class="flex items-center justify-between mb-6 gap-4 flex-wrap">
+      <div class="flex items-center gap-3 min-w-0">
+        <img src="images/SpeakOut_Logo.png" class="w-9 h-9 flex-shrink-0" alt="Logo"/>
+        <h1 class="text-xl font-bold truncate">
+          <span class="text-[#7D992D]">SPEAK OUT</span><span class="text-black"> CAMANAVA</span>
+        </h1>
+      </div>
+
+      <div class="flex items-center gap-3 flex-wrap">
+        <!-- Quick nav chips -->
+        <a class="chip text-[#4F4F4F] font-semibold hover:scale-[1.02] transition" href="#mapWrap">
+          <i class="fa-solid fa-map text-[#7D992D]"></i> Hotspot
+        </a>
+        <a class="chip text-[#4F4F4F] font-semibold hover:scale-[1.02] transition" href="#summaryWrap">
+          <i class="fa-solid fa-seedling text-[#7D992D]"></i> Summary
+        </a>
+        <!-- Reports goes to reports.html -->
+        <a class="chip text-[#4F4F4F] font-semibold hover:scale-[1.02] transition" href="reports.html">
+          <i class="fa-solid fa-chart-column text-[#7D992D]"></i> Reports
+        </a>
+
+        <!-- PROFILE -->
+        <div class="relative">
+          <button id="profileBtn" class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-[#7D992D] bg-gray-200 flex items-center justify-center text-sm font-semibold text-[#4F4F4F]" title="Account">
+            <img id="profileImg" class="w-full h-full object-cover hidden" alt="Profile"/><span id="profileInitials">--</span>
+          </button>
+
+          <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-[320px] z-50">
+            <div class="profile-card p-4">
+              <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-full overflow-hidden ring-2 ring-[#7D992D] bg-gray-200 flex items-center justify-center text-sm font-semibold text-[#4F4F4F]">
+                  <img id="profileImg2" class="w-full h-full object-cover hidden" alt="Profile"/><span id="profileInitials2">--</span>
+                </div>
+                <div class="min-w-0">
+                  <p id="profileEmail" class="text-sm font-semibold text-[#4F4F4F] truncate">—</p>
+                  <p id="tokenHint" class="text-[11px] uppercase tracking-wide text-[#7A7272]">ACTIVE</p>
+                </div>
+              </div>
+
+              <div class="mt-4">
+                <button id="logoutInside" class="w-full px-4 py-2 rounded-lg bg-red-500 text-white hover:brightness-95">
+                  <i class="fa-solid fa-right-from-bracket mr-2"></i> Log out
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- /PROFILE -->
+      </div>
+    </header>
+
+    <!-- CITY TITLE -->
+    <div class="mb-4">
+      <h2 id="cityTitle" class="text-[#4F4F4F] text-lg font-semibold">—</h2>
+    </div>
+
+    <!-- MAP CARD -->
+    <section id="mapWrap" class="bg-white rounded-xl shadow p-5 mb-6">
+      <div class="flex items-center justify-between mb-3 gap-3 flex-wrap">
+        <h3 class="text-[#4F4F4F] text-xl font-bold">Crime Hotspot</h3>
+        <div id="colorLegend" class="flex flex-wrap gap-2 overflow-x-auto max-w-full"></div>
+      </div>
+
+      <div class="relative h-[48vh] min-h-[340px] sm:min-h-[380px] lg:min-h-[480px]">
+        <div id="map" class="absolute inset-0 rounded-xl"></div>
+        <div id="mapLoading" class="hidden absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-sm rounded-xl">
+          <div class="flex items-center gap-2 bg-white shadow px-4 py-2 rounded">
+            <svg class="animate-spin h-5 w-5 text-[#7D992D]" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4A4 4 0 004 12z"/></svg>
+            <span class="text-sm text-[#4F4F4F]">Loading incidents…</span>
+          </div>
+        </div>
+      </div>
+
+      <p id="mapError" class="text-center text-sm text-red-600 mt-3 hidden"></p>
+    </section>
+
+    <!-- SUMMARY LIST -->
+    <section id="summaryWrap" class="bg-white rounded-xl shadow p-5 mb-6">
+      <div class="flex items-center justify-between mb-3 gap-3 flex-wrap">
+        <h3 class="text-[#4F4F4F] text-xl font-bold">Reported Incidents</h3>
+        <div class="flex items-center gap-2">
+          <span class="text-sm text-[#7A7272]">Range:</span>
+          <select id="rangeSummary" class="border border-[#7D992D] px-2 py-1 text-sm rounded">
+            <option value="weekly">Last 7 days</option>
+            <option value="monthly" selected>Last 30 days</option>
+            <option value="yearly">Last 12 months</option>
+          </select>
+        </div>
+      </div>
+      <div id="typeSummary" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"></div>
+    </section>
+
+    <!-- CHARTS -->
+    <section id="reportsWrap" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- PIE -->
+      <div class="bg-white rounded-xl shadow p-5">
+        <div class="flex items-center justify-between mb-3 gap-3 flex-wrap">
+          <h3 class="text-[#4F4F4F] text-lg font-bold">Most Reported Incident Types</h3>
+          <select data-chart="pie" class="rangeSel border border-[#7D992D] px-2 py-1 text-sm rounded">
+            <option value="weekly">Weekly</option>
+            <option value="monthly" selected>Monthly</option>
+            <option value="yearly">Yearly</option>
+          </select>
+        </div>
+        <div class="h-[320px] sm:h-[360px] lg:h-[420px]">
+          <canvas id="pieChart" class="w-full h-full"></canvas>
+        </div>
+      </div>
+
+      <!-- TIME OF DAY -->
+      <div class="bg-white rounded-xl shadow p-5">
+        <div class="flex items-center justify-between mb-3 gap-3 flex-wrap">
+          <h3 class="text-[#4F4F4F] text-lg font-bold">Incident Reports by Time of Day</h3>
+          <select data-chart="time" class="rangeSel border border-[#7D992D] px-2 py-1 text-sm rounded">
+            <option value="weekly">Weekly</option>
+            <option value="monthly" selected>Monthly</option>
+            <option value="yearly">Yearly</option>
+          </select>
+        </div>
+        <div class="h-[320px] sm:h-[360px] lg:h-[420px]">
+          <canvas id="barTimeChart" class="w-full h-full"></canvas>
+        </div>
+      </div>
+
+      <!-- DAY OF WEEK -->
+      <div class="bg-white rounded-xl shadow p-5">
+        <div class="flex items-center justify-between mb-3 gap-3 flex-wrap">
+          <h3 class="text-[#4F4F4F] text-lg font-bold">Incident Reports by Day</h3>
+          <select data-chart="day" class="rangeSel border border-[#7D992D] px-2 py-1 text-sm rounded">
+            <option value="weekly">Weekly</option>
+            <option value="monthly" selected>Monthly</option>
+            <option value="yearly">Yearly</option>
+          </select>
+        </div>
+        <div class="h-[320px] sm:h-[360px] lg:h-[420px]">
+          <canvas id="barDayChart" class="w-full h-full"></canvas>
+        </div>
+      </div>
+
+      <!-- TRENDS -->
+      <div class="bg-white rounded-xl shadow p-5">
+        <div class="flex items-center justify-between mb-3 gap-3 flex-wrap">
+          <h3 class="text-[#4F4F4F] text-lg font-bold">Crime Trends</h3>
+          <select data-chart="trend" class="rangeSel border border-[#7D992D] px-2 py-1 text-sm rounded">
+            <option value="weekly">Weekly</option>
+            <option value="monthly" selected>Monthly</option>
+            <option value="yearly">Yearly</option>
+          </select>
+        </div>
+        <div class="h-[320px] sm:h-[360px] lg:h-[420px]">
+          <canvas id="trendChart" class="w-full h-full"></canvas>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    /* ------------------ Supabase ------------------ */
+    const SUPABASE_URL='https://xlmshoddqaaeazvzuhar.supabase.co';
+    const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhsbXNob2RkcWFhZWF6dnp1aGFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDczMTQyNDUsImV4cCI6MjA2Mjg5MDI0NX0.-ViKUzQOAOw4b-QyAZpTfDA6qR8HNHNyWWkmHAv40ZQ';
+    const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+
+    /* ------------------ Globals ------------------ */
+    const INCIDENTS='incidents';
+    let USER=null, USER_CITY=sessionStorage.getItem('lgu_city')||'Caloocan';
+    const charts={}; /* single registry */
+
+    const colorByType={
+      "Theft":"#3B82F6",
+      "Sexual Incident":"#EF4444",
+      "Disorderly Conduct":"#22C55E",
+      "Others":"#7D992D"
+    };
+
+    /* ------------------ Helpers ------------------ */
+    const $=(id)=>document.getElementById(id);
+    const show=el=>el.classList.remove('hidden'), hide=el=>el.classList.add('hidden');
+    const capitalize=s=>String(s||'').slice(0,1).toUpperCase()+String(s||'').slice(1);
+    const initials=(email)=>{if(!email)return'--';const n=email.split('@')[0];const a=n[0]||'-', b=n[n.length-1]||'-';return (a+b).toUpperCase();}
+    const avatarUrl=(u)=>u?.user_metadata?.avatar_url||u?.user_metadata?.picture||u?.identities?.[0]?.identity_data?.avatar_url||'';
+    function asDate(v){ const d=new Date(v); return isNaN(d)?null:d; }
+
+    function inWindow(d,period){
+      const now=new Date(); const dd=new Date(d);
+      if(period==='weekly'){ const start=new Date(now); start.setDate(now.getDate()-6); start.setHours(0,0,0,0); return dd>=start && dd<=now; }
+      if(period==='monthly'){ const start=new Date(now); start.setDate(now.getDate()-29); start.setHours(0,0,0,0); return dd>=start && dd<=now; }
+      const start=new Date(now); start.setFullYear(now.getFullYear()-1); start.setHours(0,0,0,0); return dd>=start && dd<=now;
+    }
+
+    function groupForTrend(rows,period){
+      const now=new Date();
+      if(period==='weekly'||period==='monthly'){
+        const span=period==='weekly'?6:29, labels=[], map={};
+        for(let i=span;i>=0;i--){
+          const d=new Date(now); d.setDate(now.getDate()-i);
+          const key=d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+          labels.push(key); map[key]=0;
+        }
+        rows.forEach(r=>{
+          const d=asDate(r.date); if(!d || !inWindow(d,period)) return;
+          const key=d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+          if(map[key]!=null) map[key]+=1;
+        });
+        return {labels, values:labels.map(l=>map[l]||0)};
+      }
+      const labels=[], map={};
+      for(let i=11;i>=0;i--){
+        const d=new Date(now.getFullYear(), now.getMonth()-i, 1);
+        const key=d.toLocaleString('en-US',{month:'short',year:'2-digit'});
+        labels.push(key); map[key]=0;
+      }
+      rows.forEach(r=>{
+        const d=asDate(r.date); if(!d || !inWindow(d,'yearly')) return;
+        const key=d.toLocaleString('en-US',{month:'short',year:'2-digit'});
+        if(map[key]!=null) map[key]+=1;
+      });
+      return {labels, values:labels.map(l=>map[l]||0)};
+    }
+
+    function aggregate(rows,period){
+      const byType={}, byHour=Array.from({length:24},()=>0), byDow={"Sun":0,"Mon":0,"Tue":0,"Wed":0,"Thu":0,"Fri":0,"Sat":0};
+      rows.forEach(r=>{
+        const d=asDate(r.date); if(!d || !inWindow(d,period)) return;
+        const tp=r.type_of_incident || 'Others';
+        byType[tp]=(byType[tp]||0)+1;
+
+        // time-of-day
+        const t=(r.time||'').toString();
+        let hour=NaN;
+        if(/am|pm/i.test(t)){ hour=new Date(`1970-01-01 ${t}`).getHours(); }
+        else{ const m=t.split(':'); hour=parseInt(m[0],10); }
+        if(Number.isInteger(hour) && hour>=0 && hour<=23) byHour[hour]+=1;
+
+        // day of week
+        const k=new Date(d).toLocaleDateString('en-US',{weekday:'short'});
+        byDow[k]=(byDow[k]||0)+1;
+      });
+
+      return {byType, byHour, byDow};
+    }
+
+    /* ------------------ Auth guard ------------------ */
+    async function authGuard(){
+      const { data:{ session } } = await sb.auth.getSession();
+      if(!session){ window.location.replace('index.html'); return; }
+      USER=session.user;
+      // persist JWTs
+      sessionStorage.setItem('sb_access_token', session.access_token||'');
+      sessionStorage.setItem('sb_refresh_token', session.refresh_token||'');
+      sessionStorage.setItem('sb_expires_at', String(session.expires_at||''));
+      if(!sessionStorage.getItem('role')) sessionStorage.setItem('role','LGU-ADMIN');
+
+      hydrateProfileUI();
+      sb.auth.onAuthStateChange((evt,s)=>{
+        if(evt==='SIGNED_OUT'){ sessionStorage.clear(); window.location.replace('index.html'); }
+        if((evt==='TOKEN_REFRESHED'||evt==='SIGNED_IN') && s){
+          sessionStorage.setItem('sb_access_token', s.access_token||'');
+          sessionStorage.setItem('sb_refresh_token', s.refresh_token||'');
+          sessionStorage.setItem('sb_expires_at', String(s.expires_at||''));
+          const th=$('tokenHint'); if(th) th.textContent='ACTIVE';
+        }
+      });
+    }
+
+    function hydrateProfileUI(){
+      const email=USER?.email||'';
+      const av=avatarUrl(USER);
+      const init=initials(email);
+      if(av){
+        $('profileImg').src=av; $('profileImg').classList.remove('hidden'); $('profileInitials').classList.add('hidden');
+        $('profileImg2').src=av; $('profileImg2').classList.remove('hidden'); $('profileInitials2').classList.add('hidden');
+      }else{
+        $('profileInitials').textContent=init; $('profileInitials').classList.remove('hidden'); $('profileImg').classList.add('hidden');
+        $('profileInitials2').textContent=init; $('profileInitials2').classList.remove('hidden'); $('profileImg2').classList.add('hidden');
+      }
+      $('profileEmail').textContent=email || '—';
+      $('cityTitle').textContent=`${capitalize(USER_CITY)} – LGU Admin`;
+    }
+
+    function wireProfile(){
+      const btn=$('profileBtn'), dd=$('profileDropdown');
+      btn.addEventListener('click',e=>{e.stopPropagation(); dd.classList.toggle('hidden')});
+      document.addEventListener('click',()=>dd.classList.add('hidden'));
+      dd.addEventListener('click',e=>e.stopPropagation());
+
+      $('logoutInside').addEventListener('click', async ()=>{
+        try{ await sb.auth.signOut(); }catch{}
+        sessionStorage.clear(); localStorage.removeItem('currentUser');
+        window.location.replace('index.html');
+      });
+    }
+
+    /* ------------------ Map + clustering ------------------ */
+    let map, clusterGroup, cacheRows=[];
+    const CITY_CENTERS={
+      Caloocan:{lat:14.66,lng:120.99,zoom:12.5},
+      Malabon:{lat:14.66,lng:120.96,zoom:13},
+      Navotas:{lat:14.67,lng:120.94,zoom:13},
+      Valenzuela:{lat:14.70,lng:120.98,zoom:12.5}
+    };
+    const typeColor=(t)=>{
+      t=String(t||'').toLowerCase();
+      if(t.includes('theft')) return colorByType['Theft'];
+      if(t.includes('sexual')||t.includes('rape')||t.includes('harass')) return colorByType['Sexual Incident'];
+      if(t.includes('disorder')) return colorByType['Disorderly Conduct'];
+      return colorByType['Others'];
+    };
+    function initMap(){
+      const c=CITY_CENTERS[USER_CITY]||{lat:14.68,lng:120.97,zoom:12.7};
+      map=L.map('map').setView([c.lat,c.lng],c.zoom);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
+      clusterGroup=L.markerClusterGroup({
+        maxClusterRadius:50,
+        removeOutsideVisibleBounds:true,
+        spiderfyOnMaxZoom:true,
+        showCoverageOnHover:false,
+        iconCreateFunction:c=>{
+          const n=c.getChildCount(); let size=34; if(n>=50) size=52; else if(n>=10) size=42;
+          return L.divIcon({html:`<div class="cluster-icon" style="width:${size}px;height:${size}px;"><span>${n}</span></div>`,className:'cluster-div-icon',iconSize:[size,size]})
+        }
+      });
+      clusterGroup.addTo(map);
+    }
+    const setMapLoading=(b)=> b?show($('mapLoading')):hide($('mapLoading'));
+    const setMapError=(m)=>{ const el=$('mapError'); el.textContent=m||''; m?show(el):hide(el); };
+
+    function renderLegend(){
+      const el=$('colorLegend');
+      const items=[['Theft',colorByType['Theft']],['Sexual Incident',colorByType['Sexual Incident']],['Disorderly Conduct',colorByType['Disorderly Conduct']]];
+      el.innerHTML=items.map(([name,color])=>`<span class="chip text-sm"><span class="legend-dot" style="background:${color}"></span>${name}</span>`).join('');
+    }
+
+    function addPins(rows){
+      clusterGroup.clearLayers();
+      const markers=[];
+      rows.forEach(r=>{
+        const lat=parseFloat(r.latitude), lng=parseFloat(r.longitude);
+        if(!Number.isFinite(lat)||!Number.isFinite(lng)) return;
+        const icon=L.divIcon({html:`<div class="incident-pin" style="background:${typeColor(r.type_of_incident)};"></div>`,className:'custom-div-icon',iconSize:[20,20],iconAnchor:[10,10],popupAnchor:[0,-10]});
+        const m=L.marker([lat,lng],{icon,title:r.type_of_incident||'Incident'});
+        const safe=s=>String(s||'').replace(/[&<>"]/g, t => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[t]));
+        m.bindPopup(`
+          <div class="p-1">
+            <div class="text-sm text-gray-500">${new Date(r.date).toLocaleDateString('en-US')} ${r.time||''}</div>
+            <div class="font-semibold text-[#1f2937]">${safe(r.type_of_incident)}</div>
+            <div class="text-xs mt-1"><span class="font-medium">Status:</span> ${safe(r.status||'Unknown')}</div>
+            <div class="text-xs mt-1"><span class="font-medium">Location:</span> ${safe(r.location||'')}, ${safe(r.city||'')}</div>
+            ${r.description?`<div class="text-xs mt-2 text-gray-700 leading-snug">${safe(r.description)}</div>`:''}
+          </div>
+        `,{maxWidth:320});
+        markers.push(m);
+      });
+      if(markers.length){
+        clusterGroup.addLayers(markers);
+        const b=L.featureGroup(markers).getBounds();
+        map.fitBounds(b,{padding:[40,40]});
+      }else{
+        const c=CITY_CENTERS[USER_CITY]; if(c) map.setView([c.lat,c.lng],c.zoom);
+        setMapError('No incidents with coordinates for this city/range.');
+      }
+    }
+
+    async function fetchCityIncidents(){
+      setMapError(''); setMapLoading(true);
+      try{
+        const { data, error } = await sb
+          .from(INCIDENTS)
+          .select('iid, city, type_of_incident, description, location, latitude, longitude, status, date, time')
+          .eq('city', USER_CITY)
+          .order('date', {ascending:false})
+          .order('time', {ascending:false})
+          .limit(1500);
+        if(error) throw error;
+        cacheRows=data||[];
+        addPins(cacheRows);
+        renderLegend();
+        renderAllChartsAndSummary(); // once loaded
+      }catch(e){
+        console.error(e); setMapError('Failed to load incidents.');
+      }finally{
+        setMapLoading(false);
+      }
+    }
+
+    /* ------------------ Summary + Charts ------------------ */
+    function ctx(id){ return $(id).getContext('2d'); }
+    function drawChart(id, cfg){
+      if(!cfg.options) cfg.options={};
+      cfg.options.responsive=true;
+      cfg.options.maintainAspectRatio=false; // make canvas fill container height
+      if(charts[id]) charts[id].destroy();
+      charts[id]=new Chart(ctx(id), cfg);
+    }
+
+    function setSummary(period){
+      const agg=aggregate(cacheRows,period);
+      const rows=Object.entries(agg.byType).sort((a,b)=>b[1]-a[1]).map(([t,c])=>`
+        <div class="flex items-center justify-between bg-white border rounded-xl px-4 py-2">
+          <div class="flex items-center gap-2 font-semibold">
+            <span class="legend-dot" style="background:${typeColor(t)}"></span>${t}
+          </div>
+          <div class="text-lg font-bold">${c}</div>
+        </div>
+      `).join('');
+      $('typeSummary').innerHTML = rows || '<div class="text-[#7A7272] text-sm">No incidents in this range.</div>';
+    }
+
+    function renderPie(period){
+      const agg=aggregate(cacheRows,period);
+      const labels=Object.keys(agg.byType);
+      const data=labels.map(l=>agg.byType[l]);
+      drawChart('pieChart',{
+        type:'pie',
+        data:{labels,datasets:[{data,backgroundColor:labels.map(typeColor)}]}
+      });
+    }
+
+    function renderTime(period){
+      const agg=aggregate(cacheRows,period);
+      const labels=Array.from({length:24}, (_,i)=>`${i.toString().padStart(2,'0')}:00`);
+      drawChart('barTimeChart',{
+        type:'bar',
+        data:{labels,datasets:[{label:'Count',data:agg.byHour,backgroundColor:'#7D992D'}]},
+        options:{scales:{y:{beginAtZero:true}}}
+      });
+    }
+
+    function renderDay(period){
+      const order=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+      const agg=aggregate(cacheRows,period);
+      const values=order.map(k=>agg.byDow[k]||0);
+      drawChart('barDayChart',{
+        type:'bar',
+        data:{labels:order,datasets:[{label:'Count',data:values,backgroundColor:'#3B82F6'}]},
+        options:{scales:{y:{beginAtZero:true}}}
+      });
+    }
+
+    function renderTrend(period){
+      const g=groupForTrend(cacheRows,period);
+      drawChart('trendChart',{
+        type:'line',
+        data:{labels:g.labels,datasets:[{label:'Incidents',data:g.values,fill:true,backgroundColor:'rgba(125,153,45,.15)',borderColor:'#7D992D',tension:.25}]},
+        options:{scales:{y:{beginAtZero:true}}}
+      });
+    }
+
+    function renderAllChartsAndSummary(){
+      setSummary($('rangeSummary').value);
+      renderPie(document.querySelector('[data-chart="pie"]').value);
+      renderTime(document.querySelector('[data-chart="time"]').value);
+      renderDay(document.querySelector('[data-chart="day"]').value);
+      renderTrend(document.querySelector('[data-chart="trend"]').value);
+    }
+
+    function wireRangeSelectors(){
+      $('rangeSummary').addEventListener('change',e=>setSummary(e.target.value));
+      document.querySelectorAll('.rangeSel').forEach(sel=>{
+        sel.addEventListener('change',()=>{
+          const p=sel.value, which=sel.getAttribute('data-chart');
+          if(which==='pie') renderPie(p);
+          if(which==='time') renderTime(p);
+          if(which==='day') renderDay(p);
+          if(which==='trend') renderTrend(p);
+        });
+      });
+    }
+
+    /* ------------------ Boot ------------------ */
+    (async ()=>{
+      await authGuard();
+      wireProfile();
+      initMap();
+      wireRangeSelectors();
+      await fetchCityIncidents();
+    })();
+  </script>
+</body>
+</html>
